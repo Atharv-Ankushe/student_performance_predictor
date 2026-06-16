@@ -1,112 +1,108 @@
 import pickle
 import warnings
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
-from pydantic import BaseModel, Field
+import streamlit as st
 
 warnings.filterwarnings("ignore")
 
-# ─────────────────────────────────────────────
-#  🎓  Student Score Predictor  — ML API v1.0
-#  Model: Linear Regression (scikit-learn)
-#  Features: Study Hours · Past Scores ·
-#             Sleep · Practice Papers
-# ─────────────────────────────────────────────
-
-app = FastAPI(
-    title="🎓 Student Score Predictor",
-    description=(
-        "Predict a student's exam score based on study habits.\n\n"
-        "**Features used:**\n"
-        "- `hours_studied` — Hours spent studying\n"
-        "- `previous_scores` — Score in the previous exam\n"
-        "- `sleep_hours` — Hours of sleep per night\n"
-        "- `sample_question_papers_practiced` — Number of practice papers completed\n\n"
-        "_Model: Linear Regression | Framework: scikit-learn_"
-    ),
-    version="1.0.0",
+# ── Page config ─────────────────────────────
+st.set_page_config(
+    page_title="🎓 Student Score Predictor",
+    page_icon="🎓",
+    layout="centered"
 )
 
 # ── Load model ──────────────────────────────
-with open("model.pkl", "rb") as f:
-    model = pickle.load(f)
+@st.cache_resource
+def load_model():
+    with open("model.pkl", "rb") as f:
+        return pickle.load(f)
 
+model = load_model()
 
-# ── Schemas ─────────────────────────────────
-class PredictRequest(BaseModel):
-    hours_studied: float = Field(..., ge=0, le=24, example=7.0,
-                                  description="Hours spent studying (0–24)")
-    previous_scores: float = Field(..., ge=0, le=100, example=78.0,
-                                    description="Score in previous exam (0–100)")
-    sleep_hours: float = Field(..., ge=0, le=24, example=8.0,
-                                description="Sleep hours per night (0–24)")
-    sample_question_papers_practiced: float = Field(..., ge=0, example=5.0,
-                                                     description="Number of practice papers done")
+# ── Styling ─────────────────────────────────
+st.markdown("""
+<style>
+    .main { background-color: #f0f4ff; }
+    .stButton>button {
+        width: 100%;
+        background-color: #4f46e5;
+        color: white;
+        font-size: 18px;
+        padding: 12px;
+        border-radius: 10px;
+        border: none;
+        margin-top: 10px;
+    }
+    .stButton>button:hover { background-color: #4338ca; }
+    .result-box {
+        background: linear-gradient(135deg, #4f46e5, #7c3aed);
+        color: white;
+        padding: 30px;
+        border-radius: 16px;
+        text-align: center;
+        margin-top: 20px;
+    }
+    .score-number { font-size: 64px; font-weight: 800; }
+    .score-label { font-size: 18px; opacity: 0.85; }
+    .message-box {
+        background: #ffffff;
+        border-left: 5px solid #4f46e5;
+        padding: 16px 20px;
+        border-radius: 8px;
+        margin-top: 16px;
+        font-size: 16px;
+        color: #333;
+    }
+</style>
+""", unsafe_allow_html=True)
 
+# ── Header ──────────────────────────────────
+st.markdown("## 🎓 Student Score Predictor")
+st.markdown("Fill in the details below to predict your exam score.")
+st.markdown("---")
 
-class PredictResponse(BaseModel):
-    predicted_score: float = Field(..., description="Predicted exam score (0–100)")
-    message: str = Field(..., description="Performance message based on prediction")
+# ── Inputs ──────────────────────────────────
+col1, col2 = st.columns(2)
 
-
-# ── Helpers ─────────────────────────────────
-def score_message(score: float) -> str:
-    if score >= 90:
-        return "🏆 Outstanding! Top of the class material."
-    elif score >= 75:
-        return "🌟 Great job! Strong performance expected."
-    elif score >= 60:
-        return "📈 Decent score — a little more effort goes a long way!"
-    elif score >= 40:
-        return "📚 Average — consider more study hours and practice papers."
-    else:
-        return "⚠️ Needs improvement — focus on consistency and sleep!"
-
-
-# ── Routes ──────────────────────────────────
-@app.get("/", response_class=HTMLResponse, include_in_schema=False)
-def root():
-    return """
-    <html>
-      <head><title>Student Score Predictor</title></head>
-      <body style="font-family:sans-serif;text-align:center;padding:60px;background:#f0f4ff;">
-        <h1>🎓 Student Score Predictor API</h1>
-        <p style="font-size:18px;color:#555;">ML-powered exam score prediction</p>
-        <a href="/docs" style="
-          display:inline-block;margin-top:20px;padding:12px 28px;
-          background:#4f46e5;color:white;border-radius:8px;
-          text-decoration:none;font-size:16px;">
-          📖 Open API Docs
-        </a>
-      </body>
-    </html>
-    """
-
-
-@app.post("/predict", response_model=PredictResponse, summary="Predict Exam Score")
-def predict(data: PredictRequest):
-    """
-    Submit student details and get a **predicted exam score** along with
-    a performance message.
-    """
-    features = [[
-        data.hours_studied,
-        data.previous_scores,
-        data.sleep_hours,
-        data.sample_question_papers_practiced,
-    ]]
-    try:
-        score = round(float(model.predict(features)[0]), 2)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
-
-    return PredictResponse(
-        predicted_score=score,
-        message=score_message(score),
+with col1:
+    hours_studied = st.number_input(
+        "📖 Hours Studied", min_value=0.0, max_value=24.0, value=6.0, step=0.5
+    )
+    sleep_hours = st.number_input(
+        "😴 Sleep Hours", min_value=0.0, max_value=24.0, value=7.0, step=0.5
     )
 
+with col2:
+    previous_scores = st.number_input(
+        "📊 Previous Exam Score", min_value=0.0, max_value=100.0, value=70.0, step=1.0
+    )
+    practice_papers = st.number_input(
+        "📝 Practice Papers Done", min_value=0.0, max_value=50.0, value=4.0, step=1.0
+    )
 
-@app.get("/health", summary="Health Check")
-def health():
-    """Returns API status — useful for uptime monitors and deployment checks."""
-    return {"status": "✅ healthy", "model": "LinearRegression", "version": "1.0.0"}
+# ── Predict ─────────────────────────────────
+if st.button("🔮 Predict My Score"):
+    features = [[hours_studied, previous_scores, sleep_hours, practice_papers]]
+    score = round(float(model.predict(features)[0]), 2)
+    score = max(0.0, min(100.0, score))  # clamp to 0–100
+
+    # Performance message
+    if score >= 90:
+        emoji, msg = "🏆", "Outstanding! Top of the class material."
+    elif score >= 75:
+        emoji, msg = "🌟", "Great job! Strong performance expected."
+    elif score >= 60:
+        emoji, msg = "📈", "Decent score — a little more effort goes a long way!"
+    elif score >= 40:
+        emoji, msg = "📚", "Average — consider more study hours and practice papers."
+    else:
+        emoji, msg = "⚠️", "Needs improvement — focus on consistency and sleep!"
+
+    st.markdown(f"""
+    <div class="result-box">
+        <div class="score-label">Predicted Exam Score</div>
+        <div class="score-number">{score}</div>
+        <div class="score-label">out of 100</div>
+    </div>
+    <div class="message-box">{emoji} {msg}</div>
+    """, unsafe_allow_html=True)
