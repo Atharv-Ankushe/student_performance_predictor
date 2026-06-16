@@ -1,4 +1,2 @@
-fastapi
-uvicorn
-scikit-learn
-pydantic
+streamlit==1.45.1
+scikit-learn==1.6.1
